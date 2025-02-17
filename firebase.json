@@ -1,0 +1,7 @@
+{
+  "hosting": {
+    "site": "admin-ozove",
+    "public": "build",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}
