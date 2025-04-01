@@ -1,89 +1,89 @@
+// Main.js
 import React, { useState } from "react";
-import Header from "./Header";
+import { Box, CssBaseline } from "@mui/material";
 import Users from "./Pages/Users";
 import PaymentHistory from "./Pages/PaymentHistory";
 import Bookings from "./Pages/Bookings";
-import Account from "./Pages/User/Account";
+import Account, { AccountScreen, SettingsScreen } from "./Pages/User/Account";
 import Settings from "./Pages/User/Settings";
-
-import AppImage from "../../Assets/AppLogo.svg";
 import AddVehicle from "./Pages/AddVehicle";
 import Price_Calculator from "./Pages/Price_Calculator";
+import Sidebar from "./Sidebar";
+import { useAuth } from "../../Context/AuthContext";
+import AddDriver from "./Pages/AddDriver";
 
 export default function Main() {
-  const [selectedPage, setSelectedPage] = useState(null);
+  const [selectedPage, setSelectedPage] = useState("Dashboard");
   const [selectedSetting, setSelectedSetting] = useState(null);
+  const { logout } = useAuth(); // Assume you have an auth context
+
+  const handleLogout = () => {
+    // Perform logout logic
+    console.log("Log out clicked");
+    // Redirect to login
+    window.location.href = "/login";
+  };
 
   const renderSelectedComponent = () => {
-    // Conditionally render the appropriate component based on the selectedPage or selectedSetting
     switch (selectedPage) {
       case "Bookings":
         return <Bookings />;
       case "Users":
         return <Users />;
       case "Account":
-        return <Account />;
+        return <AccountScreen onLogout={handleLogout} />;
       case "Settings":
-        return <Settings />;
-      case "Add Vechile":
-        return (
-          <div style={{ marginTop: "50px", flex: 1 }}>
-            <AddVehicle />
-          </div>
-        );
+        return <SettingsScreen onLogout={handleLogout} />;
+      case "Add Vehicle Categories":
+        return <AddVehicle />;
       case "Price Calculator":
-        return (
-          <div style={{ marginTop: "50px", flex: 1 }}>
-            <Price_Calculator />
-          </div>
-        );
+        return <Price_Calculator />;
+      case "Add Driver":
+        return <AddDriver />;
+
       default:
         return (
-          <div
-            style={{
+          <Box
+            sx={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              textAlign: "center",
+              p: 3,
             }}
           >
-            <div>
-              <img src={AppImage} width={150} height={140} />
-            </div>
-            <div>
-              <h2>Welcome To Ozove </h2>
-            </div>
-          </div>
+            <h2>Welcome To Ozove Admin Portal</h2>
+            <p>Select a menu item to get started</p>
+          </Box>
         );
     }
   };
 
   return (
-    <>
-      <div
-        style={{ display: "flex", flexDirection: "column", height: "100vh" }}
-      >
-        <Header
-          onSelectPage={(page) => setSelectedPage(page)}
-          onSelectSetting={(setting) => setSelectedSetting(setting)}
-        />
+    <Box sx={{ display: "flex", flex: 1, flexGrow: 1, height: "100vh" }}>
+      <CssBaseline />
+      <Sidebar
+        onSelectPage={setSelectedPage}
+        onSelectSetting={setSelectedSetting}
+        selectedPage={selectedPage}
+      />
 
-        {selectedPage !== "Testing Area" && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              marginTop: 25,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {renderSelectedComponent()}
-          </div>
-        )}
-        {selectedPage === "Testing Area" && (
-          <div style={{}}>{renderSelectedComponent()}</div>
-        )}
-      </div>
-    </>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          transition: (theme) =>
+            theme.transitions.create("margin", {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.leavingScreen,
+            }),
+        }}
+      >
+        {renderSelectedComponent()}
+      </Box>
+    </Box>
   );
 }

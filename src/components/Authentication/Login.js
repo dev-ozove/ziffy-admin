@@ -1,8 +1,78 @@
 import React, { useEffect, useState } from "react";
-import "./Login.css";
 import { useAuth } from "../../Context/AuthContext";
-import { Alert, Button } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import {
+  Alert,
+  Button,
+  TextField,
+  Typography,
+  Container,
+  CssBaseline,
+  Box,
+  Link,
+  Grid,
+  Stack,
+  CircularProgress,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
+import {
+  LockOutlined,
+  AlternateEmailOutlined,
+  PasswordOutlined,
+  Visibility,
+  VisibilityOff,
+} from "@mui/icons-material";
+
+const defaultTheme = createTheme({
+  palette: {
+    primary: { main: "#2A3F54" },
+    secondary: { main: "#FF6F61" },
+    background: { default: "#F7F9FC" },
+  },
+  typography: {
+    fontFamily: "Inter, sans-serif",
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          transition: "all 0.3s ease",
+          "&:hover": {
+            transform: "translateY(-1px)",
+          },
+        },
+      },
+    },
+  },
+});
+
+const BackgroundContainer = styled("div")({
+  position: "fixed",
+  width: "100%",
+  height: "100%",
+  backgroundColor: defaultTheme.palette.primary.main,
+  backgroundImage: `
+    linear-gradient(45deg, ${defaultTheme.palette.primary.dark} 10%, transparent 10%),
+    linear-gradient(-45deg, ${defaultTheme.palette.primary.dark} 10%, transparent 10%),
+    linear-gradient(45deg, transparent 90%, ${defaultTheme.palette.primary.dark} 90%),
+    linear-gradient(-45deg, transparent 90%, ${defaultTheme.palette.primary.dark} 90%)
+  `,
+  backgroundSize: "4em 4em",
+  opacity: 0.1,
+  zIndex: -1,
+});
+
+const GlassCard = styled(Box)(({ theme }) => ({
+  backgroundColor: "rgba(255, 255, 255, 0.95)",
+  borderRadius: theme.shape.borderRadius * 2,
+  padding: theme.spacing(4),
+  boxShadow: theme.shadows[10],
+  backdropFilter: "blur(10px)",
+  border: "1px solid rgba(255, 255, 255, 0.3)",
+}));
 
 export default function Login() {
   const {
@@ -12,12 +82,14 @@ export default function Login() {
     error,
     set_Error,
     set_success,
-    set_disable_login,
     disable_login,
   } = useAuth();
-  const [email, set_email] = useState("");
-  const [password, set_password] = useState("");
-  const navigator = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const navigate = useNavigate();
 
   const clearMessages = () => {
     set_Error("");
@@ -25,147 +97,186 @@ export default function Login() {
   };
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (success !== "" || error !== "") {
-        clearMessages();
-      }
-    }, 4000);
+    const timeout = setTimeout(clearMessages, 4000);
     return () => clearTimeout(timeout);
-  }, [success, clearMessages]);
+  }, [success, error]);
 
-  const handle_Verify = () => {
-    if (email !== "") {
-      Verify_email(email);
-    } else {
-      set_Error("Email is empty Please try again");
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    try {
+      await Verify_email(email);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
-  const handle_Login = () => {
-    Login_user(email, password);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    try {
+      await Login_user(email, password);
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   return (
-    <>
-      <div
-        style={{
-          backgroundColor: "#FF8000",
-          height: "100vh",
-          width: "100vw",
-        }}
-      >
-        <div>
-          <form className="login">
-            <h2
-              style={{
-                fontWeight: "bold",
-                textAlign: "center",
-                color: "#fa4032",
+    <ThemeProvider theme={defaultTheme}>
+      <BackgroundContainer />
+      <Container component="main" maxWidth="xs">
+        <CssBaseline />
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            minHeight: "100vh",
+            pt: 8,
+          }}
+        >
+          <GlassCard>
+            <Box
+              sx={{
+                bgcolor: "primary.main",
+                p: 2,
+                borderRadius: 3,
+                mb: 3,
+                boxShadow: 3,
               }}
             >
-              Login To Ozove
-            </h2>
-            <div style={{ margin: 10 }}>
-              {error !== "" && (
-                <Alert variant="outlined" severity="error">
+              <LockOutlined sx={{ color: "white", fontSize: 40 }} />
+            </Box>
+
+            <Typography
+              variant="h5"
+              component="h1"
+              sx={{
+                fontWeight: 600,
+                mb: 4,
+                color: "primary.main",
+              }}
+            >
+              Admin Portal Access
+            </Typography>
+
+            <Box component="form" sx={{ width: "100%", mt: 1 }}>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
                   {error}
                 </Alert>
               )}
-              {success !== "" && (
-                <Alert variant="outlined" severity="success">
+              {success && (
+                <Alert severity="success" sx={{ mb: 2 }}>
                   {success}
                 </Alert>
               )}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-evenly",
-              }}
-            >
-              <input
-                style={{
-                  marginTop: 10,
-                  marginBottom: 10,
-                  borderRadius: "5px",
-                  borderWidth: 0,
-                  fontSize: "16px",
-                  padding: "10px 10px",
+
+              <TextField
+                fullWidth
+                margin="normal"
+                label="Email Address"
+                variant="outlined"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <AlternateEmailOutlined color="action" />
+                    </InputAdornment>
+                  ),
                 }}
-                type="text"
-                onChange={(e) => {
-                  set_email(e.currentTarget.value);
-                }}
-                placeholder="Email"
               />
-              <input
-                style={{
-                  marginTop: 10,
-                  marginBottom: 10,
-                  borderRadius: "5px",
-                  borderWidth: 0,
-                  fontSize: "16px",
-                  padding: "10px 10px",
+
+              <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={handleVerify}
+                  disabled={!email || isVerifying}
+                  startIcon={isVerifying && <CircularProgress size={20} />}
+                  sx={{ py: 1.5 }}
+                >
+                  {isVerifying ? "Verifying..." : "Verify Email"}
+                </Button>
+              </Stack>
+
+              <TextField
+                fullWidth
+                margin="normal"
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PasswordOutlined color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
                 }}
-                type="password"
-                onChange={(e) => {
-                  set_password(e.currentTarget.value);
-                }}
-                placeholder="Password"
+                sx={{ mt: 3 }}
               />
-            </div>
-            <div style={{ marginTop: 20 }}>
+
               <Button
-                sx={{
-                  backgroundColor: "#fa4032",
-                  marginLeft: 5,
-                  marginRight: 5,
-                  marginTop: 5,
-                }}
-                onClick={handle_Verify}
+                fullWidth
                 variant="contained"
-              >
-                {" "}
-                Verify{" "}
-              </Button>
-              <Button
+                onClick={handleLogin}
+                disabled={isLoggingIn || disable_login || !email || !password}
+                size="large"
                 sx={{
-                  backgroundColor: "#fa4032",
-                  marginLeft: 5,
-                  marginRight: 5,
-                  marginTop: 5,
+                  mt: 3,
+                  py: 1.5,
+                  bgcolor: "primary.main",
+                  "&:hover": { bgcolor: "primary.dark" },
+                  "&.Mui-disabled": {
+                    bgcolor: "action.disabledBackground",
+                    color: "text.disabled",
+                  },
                 }}
-                variant="contained"
-                disabled={disable_login}
-                onClick={handle_Login}
               >
-                Login
+                {isLoggingIn ? (
+                  <CircularProgress size={24} sx={{ color: "common.white" }} />
+                ) : (
+                  "Sign In"
+                )}
               </Button>
-            </div>
-            <div
-              style={{
-                marginTop: 25,
-                display: "flex",
-                cursor: "pointer",
-                justifyContent: "center",
-                backgroundColor: "#fa4032",
-                borderRadius: 10,
-                padding: 5,
-              }}
-            >
-              <div
-                onClick={() => {
-                  navigator("/SignUp");
-                }}
-                style={{ color: "white", marginLeft: 10 }}
-              >
-                Create a New Account
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
+
+              <Grid container sx={{ mt: 3, mb: 2 }}>
+                <Grid item xs>
+                  <Link
+                    href="#"
+                    variant="body2"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Forgot Password?
+                  </Link>
+                </Grid>
+                <Grid item>
+                  <Link
+                    href="#"
+                    variant="body2"
+                    onClick={() => navigate("/SignUp")}
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Create Admin Account
+                  </Link>
+                </Grid>
+              </Grid>
+            </Box>
+          </GlassCard>
+        </Box>
+      </Container>
+    </ThemeProvider>
   );
 }

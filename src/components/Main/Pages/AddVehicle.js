@@ -28,6 +28,8 @@ export default function VehicleManager() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
+  console.log("Vehicles >>", vehicles);
+
   const [formData, setFormData] = useState({
     title: "",
     capacity: "",

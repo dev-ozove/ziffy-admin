@@ -1,6 +1,19 @@
 import React, { useContext, useState } from "react";
 import { db } from "../Firebase";
-import { collection, collectionGroup, getDocs } from "firebase/firestore";
+import {
+  collection,
+  collectionGroup,
+  doc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  startAfter,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { connectStorageEmulator } from "firebase/storage";
 
 const OzoveContext = React.createContext();
@@ -16,67 +29,88 @@ export function OzoveProvider({ children }) {
   const [hoveredUser, setHoveredUser] = useState(null);
 
   // Fetch all bookings from Firebase
-  const _getAllBookingsDetails = async () => {
+  const _getAllBookingsDetails = async (
+    pageSize = 10,
+    lastVisible = null,
+    filters = {}
+  ) => {
     try {
+      let queryRef = collectionGroup(db, "individual_bookings");
+
+      // Always sort by TimeStamp (required by the index)
+      queryRef = query(queryRef, orderBy("TimeStamp", "desc"));
+
+      // Apply filters
+      const filterConditions = [];
+      if (filters.dateFrom) {
+        filterConditions.push(
+          where("TimeStamp", ">=", new Date(filters.dateFrom))
+        );
+      }
+      if (filters.dateTo) {
+        filterConditions.push(
+          where("TimeStamp", "<=", new Date(filters.dateTo))
+        );
+      }
+      if (filters.status && filters.status !== "all") {
+        filterConditions.push(where("Status", "==", filters.status));
+      }
+
+      // Combine query conditions
+      if (filterConditions.length > 0) {
+        queryRef = query(queryRef, ...filterConditions);
+      }
+
+      // Pagination
+      queryRef = query(queryRef, limit(pageSize));
+      if (lastVisible) {
+        queryRef = query(queryRef, startAfter(lastVisible));
+      }
+
+      const bookingsSnapshot = await getDocs(queryRef);
       const bookings = [];
-      //querry for getting the uid
-      const bookingRef = collectionGroup(db, "individual_bookings");
-      const bookingsSnapshot = await getDocs(bookingRef);
       bookingsSnapshot.forEach((doc) => {
-        console.log(doc);
-        bookings.push(doc.data());
+        bookings.push({ id: doc.id, ref: doc.ref, ...doc.data() });
       });
 
-      // const BookingRef = collection(db, "bookings"); // Reference to the bookings collection
-      // const querySnapshot = await getDocs(BookingRef);
-
-      //
-      // querySnapshot.forEach((doc) => {
-      //   console.log(doc);
-      //   uids.push(doc.id); // Push each document ID (uid) to the array
-      // });
-
-      // console.log("UIDs in bookings collection:", uids);
-
-      //   usersSnapshot.docs.forEach((userDoc) => {
-      //     const userId = userDoc.id; // Get the userId
-      //     console.log(userId);
-      //     const individualBookingsRef = collection(
-      //       db,
-      //       "Bookings",
-      //       userId,
-      //       "Individual_Bookings"
-      //     );
-      //   });
-
-      // Loop through each user document in the Bookings collection
-      // for (const userDoc of usersSnapshot.docs) {
-      //   const userId = userDoc.id; // Get the userId
-      //   const individualBookingsRef = collection(
-      //     db,
-      //     "bookings",
-      //     userId,
-      //     "individual_bookings"
-      //   );
-
-      //   // Query the Individual_Bookings subcollection for this user
-      //   const bookingsSnapshot = await getDocs(individualBookingsRef);
-      //   // Add each booking to the array with userId included
-      //   bookingsSnapshot.forEach((bookingDoc) => {
-      //     bookings.push({
-      //       location: bookingDoc.data().location,
-      //       userId, // Include the userId
-      //       bookingId: bookingDoc.id, // Booking document ID
-      //       ...bookingDoc.data(), // Booking data
-      //     });
-      //     //console.log(bookingDoc.data());
-      //   });
-      // }
-
-      return bookings; // Return all bookings
+      const newLastVisible =
+        bookingsSnapshot.docs[bookingsSnapshot.docs.length - 1];
+      return { bookings, lastVisible: newLastVisible };
     } catch (error) {
       console.error("Error fetching bookings:", error);
       throw new Error("Failed to fetch bookings.");
+    }
+  };
+
+  const _updateBookingStatus = async (updatedBooking) => {
+    try {
+      // Create update object with proper nested fields
+      const updateData = {
+        "status.bookingStatus": updatedBooking.status.bookingStatus,
+        "status.statusCode": updatedBooking.status.statusCode,
+      };
+
+      // Only add driver data if it exists
+      if (updatedBooking.driver) {
+        updateData["driver.id"] = updatedBooking.driver.id;
+        updateData["driver.name"] = updatedBooking.driver.name;
+      } else {
+        updateData["driver"] = null; // Or firestore.FieldValue.delete() to remove field
+      }
+
+      await updateDoc(updatedBooking.ref, updateData);
+
+      // Update local state
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === updatedBooking.id ? { ...b, ...updateData } : b
+        )
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Error updating booking:", error);
+      throw new Error("Failed to update booking");
     }
   };
 
@@ -99,13 +133,80 @@ export function OzoveProvider({ children }) {
     }
   };
 
+  const _addVehicle = async (vehicleData) => {
+    try {
+      setLoading(true);
+      // Generate custom ID using plate number and chassis number
+      const customId = `${vehicleData.plateNumber}_${vehicleData.chassisNumber}`
+        .toUpperCase()
+        .replace(/[^a-zA-Z0-9]/g, "_");
+
+      // Create document reference with custom ID
+      const vehicleRef = doc(db, "vehiclesDetails", customId);
+
+      // Prepare vehicle data with metadata
+      const vehicleWithMeta = {
+        ...vehicleData,
+        id: customId, // Include the custom ID in the document
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: "active", // Add default status
+      };
+
+      // Save to Firestore
+      await setDoc(vehicleRef, vehicleWithMeta)
+        .then(() => {
+          setLoading(false);
+          console.log("Vehicle added successfully");
+        })
+        .catch((error) => {
+          setLoading(false);
+          console.error("Error adding vehicle:", error);
+          setError(error.message);
+          throw new Error("Failed to add vehicle");
+        });
+
+      return customId;
+    } catch (error) {
+      console.error("Error adding vehicle:", error);
+      throw new Error("Failed to add vehicle");
+    }
+  };
+
+  // Add this to OzoveProvider.js
+  const _addDriver = async (driverData) => {
+    try {
+      setLoading(true);
+      const driverRef = doc(collection(db, "drivers"));
+      const driverWithMeta = {
+        ...driverData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: "active",
+      };
+      await setDoc(driverRef, driverWithMeta);
+      setLoading(false);
+      return driverRef.id;
+    } catch (error) {
+      console.error("Error adding driver:", error);
+      setLoading(false);
+      setError(error.message);
+      throw new Error("Failed to add driver");
+    }
+  };
+
+  // In OzoveProvider.js
+
   const value = {
     bookings,
     loading,
     error,
     hoveredUser,
+    _addVehicle,
     _getAllBookingsDetails,
     _getUserDetails,
+    _updateBookingStatus,
+    _addDriver,
   };
 
   return (
